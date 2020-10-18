@@ -1,7 +1,9 @@
 package ibm.converter.utilities;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.time.LocalDateTime;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
@@ -10,6 +12,7 @@ import org.apache.commons.io.FileUtils;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Element;
 import org.jsoup.nodes.Node;
+import org.jsoup.nodes.TextNode;
 import org.jsoup.select.Elements;
 
 public class XwikiHelper
@@ -19,13 +22,21 @@ public class XwikiHelper
 	private static final String ATTACHMENT_NOTE = "Page Attachments:";
 	private static final String HEIGHT = "height";
 	private static final String WIDTH = "width";
+	private static final String EQUAL = "=";
 	private static final String CELL_STYLE = "(% style=\"border-color: black; ${width}\" %)";
 	private static final String STYLE = "style";
 	private static final String SPACE = " ";
-	private static final String HREF = "href";
 	private static final String LIST_ITEM = "li";
 	private static final String NAV = "nav";
 	private static final String ANCHOR = "a";
+	private static final String PAGE = "page";
+	private static final String HREF = "href";
+	private static final String HEADER_PATTERN = "h[1-6]";
+	private static final Object TABLE = "table";
+	private static final String IMAGE = "img";
+	private static final String SOURCE = "src";
+	private static final char SEPARATOR = File.separatorChar;
+
 	static final String DOT = ".";
 	private static final String NEW_LINE = "\n";
 	private static final String UNDER_LINE = "_";
@@ -37,9 +48,9 @@ public class XwikiHelper
 				+ "<xwikidoc version=\"1.3\" reference=\"${reference}\" locale=\"\">\r\n" + "  <language/>\r\n"
 				+ "  <defaultLanguage>en</defaultLanguage>\r\n" + "  <translation>0</translation>\r\n"
 				+ "  <creator>XWiki.Admin</creator>\r\n" + "  <creationDate>1602726761000</creationDate>\r\n"
-				+ "<parent>" + FileLoader.getConfigMap().get("parent") + "</parent>\r\n" + "<author>"
-				+ FileLoader.getConfigMap().get("author") + "</author>\r\n" + "  <contentAuthor>"
-				+ FileLoader.getConfigMap().get("contentAuthor") + "</contentAuthor>\r\n"
+				+ "<parent>" + FileHandler.getConfigMap().get("parent") + "</parent>\r\n" + "<author>"
+				+ FileHandler.getConfigMap().get("author") + "</author>\r\n" + "  <contentAuthor>"
+				+ FileHandler.getConfigMap().get("contentAuthor") + "</contentAuthor>\r\n"
 				+ "  <date>1602728773000</date>\r\n" + "  <contentUpdateDate>1602728773000</contentUpdateDate>\r\n"
 				+ "  <version>3.1</version>\r\n" + "  <title>${title}</title>\r\n" + "  <comment/>\r\n"
 				+ "  <minorEdit>false</minorEdit>\r\n" + "  <syntaxId>xwiki/2.1</syntaxId>\r\n"
@@ -66,11 +77,6 @@ public class XwikiHelper
 		}
 	}
 
-	/*
-	 * public static String getTitle(String title) { if (title.contains(DASH)) {
-	 * return title.split("-")[0].trim(); } return title; }
-	 */
-
 	public static String getTextImage(File file, Node node) throws IOException
 	{
 		return "[[image:" + file.getName() + "||" + getDimension(node) + "]]";
@@ -84,7 +90,7 @@ public class XwikiHelper
 	public static void buildAttachment(File file, StringBuilder attachmentBuf) throws IOException
 	{
 		attachmentBuf.append("\r\n<attachment>\r\n").append("<filename>").append(file.getName())
-				.append("</filename>\r\n").append("<author>").append(FileLoader.getConfigMap().get("author"))
+				.append("</filename>\r\n").append("<author>").append(FileHandler.getConfigMap().get("author"))
 				.append("</author>\r\n").append("<date>1602781230000</date>\r\n").append("<version>1.1</version>\r\n")
 				.append("<comment/>\r\n").append("<content>\r\n");
 		attachmentBuf.append(transformImageToText(file)).append(getTextImageTrailer());
@@ -107,7 +113,7 @@ public class XwikiHelper
 	public static void buildAttachment(String file, String body, StringBuilder attachmentBuf) throws IOException
 	{
 		attachmentBuf.append("\r\n<attachment>\r\n").append("<filename>").append(file).append("</filename>\r\n")
-				.append("<author>").append(FileLoader.getConfigMap().get("author")).append("</author>\r\n")
+				.append("<author>").append(FileHandler.getConfigMap().get("author")).append("</author>\r\n")
 				.append("<date>1602781230000</date>\r\n").append("<version>1.1</version>\r\n").append("<comment/>\r\n")
 				.append("<content>\r\n");
 		attachmentBuf.append(body).append(getTextImageTrailer());
@@ -301,4 +307,105 @@ public class XwikiHelper
 		}
 		return map;
 	}
+
+	static void handleElement(Element body, StringBuilder buf, StringBuilder attachmentBuf)
+	{
+		for (int i = 0; i < body.childNodeSize(); i++)
+		{
+			Node node = body.childNode(i);
+			if (node instanceof TextNode)
+			{
+				buf.append(NEW_LINE).append((node).toString());
+			} else if (node instanceof Element)
+			{
+				if (node.hasAttr(PAGE))
+				{
+					buildTextNodeForInternalAnchor(node, buf);
+				} else if (node.hasAttr(HREF))
+				{
+					buildTextNodeForExternalAnchor(node, buf);
+				} else if (node.nodeName().matches(HEADER_PATTERN))
+				{
+					buildTextNodeForHeaderElement(node, buf);
+				} else if (node.nodeName().equals(IMAGE))
+				{
+					buildTextNodeForImageElement(node, buf, attachmentBuf);
+				} else if (node.nodeName().equals(TABLE))
+				{
+					XwikiHelper.buildTable((Element) node, buf);
+				} else
+				{
+					handleElement((Element) node, buf, attachmentBuf);
+				}
+			}
+		}
+
+	}
+
+	private static void buildTextNodeForImageElement(Node node, StringBuilder buf, StringBuilder attachmentBuf)
+	{
+		try
+		{
+			String src = node.attr(SOURCE);
+			if (src.trim().startsWith("images"))
+			{
+				File file = new File(FileHandler.getSourceDirectory() + SEPARATOR + src);
+
+				buf.append(XwikiHelper.getTextImage(file, node));
+				XwikiHelper.buildAttachment(file, attachmentBuf);
+
+			} else if (src.trim().startsWith("http"))
+			{
+				String dummyName = String.valueOf(LocalDateTime.now().getNano());
+				buf.append(XwikiHelper.getTextImage(dummyName, node));
+
+			} else if (src.trim().contains("base64,"))
+			{
+				String dummyName = String.valueOf(LocalDateTime.now().getNano());
+				buf.append(XwikiHelper.getTextImage(dummyName, node));
+				String imgBody = src.split("base64,")[1];
+				XwikiHelper.buildAttachment(dummyName, imgBody, attachmentBuf);
+
+			}
+		} catch (FileNotFoundException e)
+		{
+			// ignore
+		} catch (IOException e)
+		{
+			e.printStackTrace();
+		}
+
+	}
+
+	private static void buildTextNodeForInternalAnchor(Node node, StringBuilder buf)
+	{
+		String link = node.childNode(0).toString();
+		link = link.replaceAll("&", "&amp;");
+
+		buf.append("[[").append(node.attr(PAGE)).append(">>").append(link).append("]]");
+
+	}
+
+	private static void buildTextNodeForExternalAnchor(Node node, StringBuilder buf)
+	{
+		String link = node.attr(HREF);
+		link = link.replaceAll("&", "&amp;");
+		buf.append("[[").append(node.childNode(0).toString()).append(">>").append(link).append("]]");
+	}
+
+	private static void buildTextNodeForHeaderElement(Node node, StringBuilder buf)
+	{
+		int count = Integer.parseInt(node.nodeName().substring(1));
+		for (int i = 0; i < count; i++)
+		{
+			buf.append(EQUAL);
+		}
+		buf.append(Jsoup.parse(node.outerHtml()).body().wholeText());
+		for (int i = 0; i < count; i++)
+		{
+			buf.append(EQUAL);
+		}
+
+	}
+
 }

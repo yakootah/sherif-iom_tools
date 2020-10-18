@@ -1,6 +1,6 @@
 package ibm.converter.main;
 
-import ibm.converter.utilities.FileLoader;
+import ibm.converter.utilities.FileHandler;
 
 public class Main
 {
@@ -9,7 +9,7 @@ public class Main
 	{
 		try
 		{
-			FileLoader.convertFile();
+			FileHandler.convertFile();
 		} catch (Exception e)
 		{
 			e.printStackTrace();
