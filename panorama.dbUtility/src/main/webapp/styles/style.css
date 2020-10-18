@@ -1,0 +1,57 @@
+@charset "ISO-8859-1";
+.header
+{
+	color:green;
+	text-align: center;
+}
+
+.midArea
+{
+	text-align: center;
+}
+#utilityTitle
+{
+	color:red;
+}
+#version{
+	color:black;
+	font-size: 0.35em;
+}
+.statusHeight{
+	height: 180px;
+    overflow: auto;
+}
+#animation{
+	display:none;
+	
+}
+.percentage{
+	font-size: 1.5em;
+	color:red;
+	float:right;
+	
+}
+#release
+{
+	margin-bottom:25px;
+	text-align : right;
+}
+.tableInner{
+	display:none;
+}
+.numberWidth{
+	width:90px;
+}
+.deleteImage{
+	cursor: pointer;
+}
+.hide{
+	display:none;
+}
+.deleteImage:hover {
+ width:120%;
+}
+.blackButton{
+	background-color:black;
+	color:white !important;
+}
