@@ -10,6 +10,7 @@ import java.util.Map;
 
 import org.apache.commons.io.FileUtils;
 import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.nodes.Node;
 import org.jsoup.nodes.TextNode;
@@ -77,16 +78,19 @@ public class XwikiHelper
 		}
 	}
 
+	@Deprecated
 	public static String getTextImage(File file, Node node) throws IOException
 	{
 		return "[[image:" + file.getName() + "||" + getDimension(node) + "]]";
 	}
 
+	@Deprecated
 	public static String getTextImage(String file, Node node) throws IOException
 	{
 		return "[[image:" + file + "||" + getDimension(node) + "]]";
 	}
 
+	@Deprecated
 	public static void buildAttachment(File file, StringBuilder attachmentBuf) throws IOException
 	{
 		attachmentBuf.append("\r\n<attachment>\r\n").append("<filename>").append(file.getName())
@@ -96,6 +100,7 @@ public class XwikiHelper
 		attachmentBuf.append(transformImageToText(file)).append(getTextImageTrailer());
 	}
 
+	@Deprecated
 	private static String getDimension(Node node)
 	{
 		String dimension = "";
@@ -110,6 +115,7 @@ public class XwikiHelper
 		return dimension;
 	}
 
+	@Deprecated
 	public static void buildAttachment(String file, String body, StringBuilder attachmentBuf) throws IOException
 	{
 		attachmentBuf.append("\r\n<attachment>\r\n").append("<filename>").append(file).append("</filename>\r\n")
@@ -119,6 +125,7 @@ public class XwikiHelper
 		attachmentBuf.append(body).append(getTextImageTrailer());
 	}
 
+	@Deprecated
 	private static String transformImageToText(File file) throws IOException
 	{
 		String fileName = cleanupImagePath(file.getAbsolutePath());
@@ -132,6 +139,7 @@ public class XwikiHelper
 
 	}
 
+	@Deprecated
 	private static String getTextImageTrailer() throws IOException
 	{
 		return "</content>\r\n" + "</attachment>\r\n";
@@ -145,10 +153,9 @@ public class XwikiHelper
 	private static String cleanData(String data)
 	{
 		data = data.replaceAll("Â", "");
-		data = data.replaceAll("&nbsp;", ",");
-		data = data.replaceAll("&", ",");
-		data = data.replaceAll("\\<", "&lt;");
-		// data = StringEscapeUtils.escapeHtml4(data);
+		data = data.replaceAll("&nbsp;", "");
+		// data = data.replaceAll("&", ",");
+		data = data.replaceAll("<", "&lt;");
 		return removeImportToolAttatmentNotes(data);
 	}
 
@@ -159,6 +166,7 @@ public class XwikiHelper
 		return data.replaceAll("&", ",");
 	}
 
+	@Deprecated
 	public static void buildTable(Element table, StringBuilder buf)
 	{
 		addTableStyle(table, buf);
@@ -169,6 +177,7 @@ public class XwikiHelper
 		buildTableRows(buf, bodies);
 	}
 
+	@Deprecated
 	private static void addTableStyle(Element table, StringBuilder buf)
 	{
 		if (!Handy.isEmptyString(table.attr(WIDTH)))
@@ -180,6 +189,7 @@ public class XwikiHelper
 		}
 	}
 
+	@Deprecated
 	private static void buildTableHeader(StringBuilder buf, Elements headers)
 	{
 		if (headers != null && headers.size() > 0)
@@ -200,6 +210,7 @@ public class XwikiHelper
 
 	}
 
+	@Deprecated
 	private static void buildTableRows(StringBuilder buf, Elements bodies)
 	{
 		if (bodies != null && bodies.size() > 0)
@@ -223,12 +234,14 @@ public class XwikiHelper
 		}
 	}
 
+	@Deprecated
 	private static StringBuilder updateCellStyleWithWidth(StringBuilder buf, Element col)
 	{
 		String style = CELL_STYLE.replace("${width}", getCellWidth(col));
 		return buf.append(style);
 	}
 
+	@Deprecated
 	private static String getCellWidth(Element col)
 	{
 		String width = "";
@@ -308,6 +321,7 @@ public class XwikiHelper
 		return map;
 	}
 
+	@Deprecated
 	static void handleElement(Element body, StringBuilder buf, StringBuilder attachmentBuf)
 	{
 		for (int i = 0; i < body.childNodeSize(); i++)
@@ -342,6 +356,7 @@ public class XwikiHelper
 
 	}
 
+	@Deprecated
 	private static void buildTextNodeForImageElement(Node node, StringBuilder buf, StringBuilder attachmentBuf)
 	{
 		try
@@ -377,6 +392,7 @@ public class XwikiHelper
 
 	}
 
+	@Deprecated
 	private static void buildTextNodeForInternalAnchor(Node node, StringBuilder buf)
 	{
 		String link = node.childNode(0).toString();
@@ -386,6 +402,7 @@ public class XwikiHelper
 
 	}
 
+	@Deprecated
 	private static void buildTextNodeForExternalAnchor(Node node, StringBuilder buf)
 	{
 		String link = node.attr(HREF);
@@ -393,6 +410,7 @@ public class XwikiHelper
 		buf.append("[[").append(node.childNode(0).toString()).append(">>").append(link).append("]]");
 	}
 
+	@Deprecated
 	private static void buildTextNodeForHeaderElement(Node node, StringBuilder buf)
 	{
 		int count = Integer.parseInt(node.nodeName().substring(1));
@@ -408,4 +426,52 @@ public class XwikiHelper
 
 	}
 
+	public static String buildWikiPageUsingHtmlMacro(String title, String reference, String body,
+			StringBuilder attachmentBuf)
+	{
+		return cleanHeader(getXwikiPageHeader(title, reference)) + addHtmlMacroTag(body) + getTail(attachmentBuf);
+	}
+
+	private static String addHtmlMacroTag(String data)
+	{
+		return "{{html}}" + NEW_LINE + cleanData(data) + NEW_LINE + "{{/html}}";
+	}
+
+	public static String processAllImages(String data)
+	{
+		Document doc = Jsoup.parse(data);
+
+		Elements imgs = doc.getElementsByTag(IMAGE);
+
+		imgs.stream().forEach(e -> processImageSource(e));
+
+		return doc.body().outerHtml();
+	}
+
+	private static void processImageSource(Node e)
+	{
+		String src = e.attr(SOURCE);
+		try
+		{
+			if (src.trim().startsWith("images"))
+			{
+				src = transformImageToTextWithMeta(new File(FileHandler.getSourceDirectory() + SEPARATOR + src));
+				e.attr(SOURCE, src);
+			}
+		} catch (FileNotFoundException e1)
+		{
+			// ignore
+		} catch (IOException e2)
+		{
+			throw new RuntimeException(e2);
+		}
+	}
+
+	private static String transformImageToTextWithMeta(File file) throws IOException
+	{
+		String meta = "data:image;base64,";
+		String fileName = cleanupImagePath(file.getAbsolutePath());
+		byte[] fileContent = FileUtils.readFileToByteArray(new File(fileName));
+		return meta + Base64.getEncoder().encodeToString(fileContent);
+	}
 }

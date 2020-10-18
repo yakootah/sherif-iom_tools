@@ -38,7 +38,6 @@ public class FileHandler
 	public static void convertFile()
 	{
 		StringBuilder attachmentBuf;
-		// String file = getListOfFiles().get(1040);
 		for (File file : getListOfFiles())
 		{
 			attachmentBuf = new StringBuilder();
@@ -69,11 +68,15 @@ public class FileHandler
 			{
 				continue;
 			}
-			writeFile(XwikiHelper.buildWikiPage(value[0], reference, traverse(data, attachmentBuf), attachmentBuf),
-					file);
+			// writeFile(XwikiHelper.buildWikiPage(value[0], reference, traverse(data,
+			// attachmentBuf), attachmentBuf),file);
+			// data = Jsoup.parse(data).body().outerHtml();
+			data = XwikiHelper.processAllImages(data);
+			writeFile(XwikiHelper.buildWikiPageUsingHtmlMacro(value[0], reference, data, attachmentBuf), file);
 		}
 	}
 
+	@Deprecated
 	public static String traverse(String data, StringBuilder attachmentBuf)
 	{
 		StringBuilder buf = new StringBuilder();
