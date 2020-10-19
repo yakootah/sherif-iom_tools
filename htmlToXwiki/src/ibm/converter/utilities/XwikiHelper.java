@@ -36,11 +36,17 @@ public class XwikiHelper
 	private static final Object TABLE = "table";
 	private static final String IMAGE = "img";
 	private static final String SOURCE = "src";
-	private static final char SEPARATOR = File.separatorChar;
-
+	private static final String ANCHOR_FILE_ATTRIBUTE = "files";
+	private static final String SEPARATOR = String.valueOf(File.separatorChar);
+	private static final String TITLE = "title";
+	private static final String VIEW_DETAILS = "View details";
+	private static final String HTTP = "http";
+	private static final String ARIAL = "Arial";
 	static final String DOT = ".";
 	private static final String NEW_LINE = "\n";
 	private static final String UNDER_LINE = "_";
+	private static final String URL_SEPARATOR = "/";
+	static final String EMPTY = "";
 	private static Map<String, String[]> map = new HashMap<String, String[]>();
 
 	private static String getXwikiPageHeader(String title, String reference)
@@ -152,10 +158,12 @@ public class XwikiHelper
 
 	private static String cleanData(String data)
 	{
-		data = data.replaceAll("Â", "");
-		data = data.replaceAll("&nbsp;", "");
+		data = data.replaceAll("Â", EMPTY);
+		data = data.replaceAll("&nbsp;", EMPTY);
 		// data = data.replaceAll("&", ",");
 		data = data.replaceAll("<", "&lt;");
+		data = data.replaceAll("-webkit-text-stroke-width:0px", EMPTY);
+		data = data.replaceAll("&quot;Helvetica Neue&quot;", ARIAL);
 		return removeImportToolAttatmentNotes(data);
 	}
 
@@ -292,7 +300,7 @@ public class XwikiHelper
 	{
 		if (node.tag().getName().equals(NAV))
 		{
-			return;
+			buf.insert(0, FileHandler.getPagePathRoot());
 		} else if (node.tag().getName().equals(LIST_ITEM))
 		{
 			buf.insert(0, massageTheCuurrentLevelPath(node));
@@ -308,7 +316,7 @@ public class XwikiHelper
 	{
 		int pos = node.select(ANCHOR).attr(HREF).lastIndexOf(DOT);
 		String output = node.select(ANCHOR).attr(HREF).substring(0, pos);
-		output = output.replaceAll("\\.", UNDER_LINE);
+		output = output.replaceAll("\\" + DOT, UNDER_LINE);
 		return output + DOT;
 	}
 
@@ -437,15 +445,24 @@ public class XwikiHelper
 		return "{{html}}" + NEW_LINE + cleanData(data) + NEW_LINE + "{{/html}}";
 	}
 
-	public static String processAllImages(String data)
+	public static String processLinks(String data)
 	{
 		Document doc = Jsoup.parse(data);
+
+		processAllImages(doc);
+
+		processAllAnchors(doc);
+
+		return doc.body().outerHtml();
+	}
+
+	public static void processAllImages(Document doc)
+	{
 
 		Elements imgs = doc.getElementsByTag(IMAGE);
 
 		imgs.stream().forEach(e -> processImageSource(e));
 
-		return doc.body().outerHtml();
 	}
 
 	private static void processImageSource(Node e)
@@ -474,4 +491,92 @@ public class XwikiHelper
 		byte[] fileContent = FileUtils.readFileToByteArray(new File(fileName));
 		return meta + Base64.getEncoder().encodeToString(fileContent);
 	}
+
+	public static void processAllAnchors(Document doc)
+	{
+		Elements anchors = doc.getElementsByTag(ANCHOR);
+
+		anchors.stream().forEach(e -> processAnchor(e));
+
+	}
+
+	private static void processAnchor(Element e)
+	{
+		String ref = e.attr(HREF);
+		if (isFileOnW3(e))
+		{
+			e.attr(HREF, buildLinkForFile(ref));
+		} else if (isViewDetailLinkOnW3(e))
+		{
+			e.remove();
+		} else if (isLinkOnW3(e))
+		{
+			buildLinkForXwikiPage(e);
+		}
+	}
+
+	private static boolean isFileOnW3(Node node)
+	{
+		return !(Handy.isEmptyString(node.attr(ANCHOR_FILE_ATTRIBUTE)) && Handy.isEmptyString(node.attr("_ic_source")))
+				&& isLinkOnW3(node);
+	}
+
+	private static String buildLinkForFile(String ref)
+	{
+		return FileHandler.getXwikiFileManagerLocation() + getFile(ref);
+	}
+
+	private static boolean isLinkOnW3(Node node)
+	{
+		return node.attr(HREF).contains(FileHandler.getW3FilesLocation()) || !node.attr(HREF).contains(HTTP);
+
+	}
+
+	private static boolean isViewDetailLinkOnW3(Node node)
+	{
+		return isLinkOnW3(node) & node.attr(TITLE).startsWith(VIEW_DETAILS);
+	}
+
+	private static void buildLinkForXwikiPage(Node e)
+	{
+		String ref = e.attr(HREF);
+		String path = getPagePath(getFile(ref));
+		if (Handy.isEmptyString(path))
+		{
+			e.attr("Style", "background-color:red");
+			return;
+		}
+		e.attr(HREF, path);
+	}
+
+	private static String getFile(String ref)
+	{
+		String[] parts = ref.split("/");
+		String filePart = parts[parts.length - 1];
+		return cleanupImagePath(filePart);
+	}
+
+	static String getPagePath(String fileName)
+	{
+		try
+		{
+			String pagePath = getHierarchyMap().get(fileName)[1];
+			String filePath = convertPagePathToFilePath(pagePath);
+			return FileHandler.getXwikiXmlBaseLocation() + filePath;
+		} catch (Exception e)
+		{
+			String file = FileHandler.getAnchorFileName(fileName);
+			if (Handy.isEmptyString(file))
+			{
+				return EMPTY;
+			}
+			return FileHandler.getXwikiFileManagerLocation() + file;
+		}
+	}
+
+	static String convertPagePathToFilePath(String path)
+	{
+		return path.replaceAll("\\" + DOT, URL_SEPARATOR);
+	}
+
 }

@@ -2,16 +2,22 @@ package ibm.converter.utilities;
 
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Scanner;
 import java.util.stream.Collectors;
 
+import org.json.simple.JSONArray;
+import org.json.simple.JSONObject;
+import org.json.simple.parser.JSONParser;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Element;
 
@@ -23,16 +29,20 @@ public class FileHandler
 	private static final String COMMENT_MARK = "#";
 	private static final String DELIMITER_MARK = "=";
 	private static final String CFG_FILE = "/sources/xWiki.cfg";
-
+	private static final String JSON_LINK_FILE = "jsonLinkFilePath";
+	private static final String FILE_ON_SERVER_TOKEN = "w3FilesLocation";
 	private static final String NEW_LINE = "\n";
 	private static final String XML = ".xml";
-	private static final Object ROOT = "root";
+	private static final String ROOT = "root";
+	private static final String XWIKI_FILE_MANAGER_LOCATION = "xWikiFileManagerLocation";
+	private static final String XWIKI_XML_BASE_LOCATION = "xWikiXmlBaseLocation";
 
 	private static Map<String, String> configMap = new HashMap<String, String>();
-
+	private static Map<String, String> fileMap = new HashMap<String, String>();
 	static
 	{
 		loadConfigFile();
+		readJsonFile();
 	}
 
 	public static void convertFile()
@@ -63,15 +73,12 @@ public class FileHandler
 			String reference = "";
 			try
 			{
-				reference = getConfigMap().get(ROOT) + XwikiHelper.DOT + value[1];
+				reference = value[1];
 			} catch (Exception e)
 			{
 				continue;
 			}
-			// writeFile(XwikiHelper.buildWikiPage(value[0], reference, traverse(data,
-			// attachmentBuf), attachmentBuf),file);
-			// data = Jsoup.parse(data).body().outerHtml();
-			data = XwikiHelper.processAllImages(data);
+			data = XwikiHelper.processLinks(data);
 			writeFile(XwikiHelper.buildWikiPageUsingHtmlMacro(value[0], reference, data, attachmentBuf), file);
 		}
 	}
@@ -198,9 +205,68 @@ public class FileHandler
 
 	}
 
-	public static String getSourceDirectory()
+	static String getSourceDirectory()
 	{
 		return getConfigMap().get(SOURCE_DIR);
 	}
 
+	static String getXwikiFileManagerLocation()
+	{
+		return getConfigMap().get(XWIKI_FILE_MANAGER_LOCATION);
+	}
+
+	static String getXwikiXmlBaseLocation()
+	{
+		return getConfigMap().get(XWIKI_XML_BASE_LOCATION);
+	}
+
+	static String getW3FilesLocation()
+	{
+		return getConfigMap().get(FILE_ON_SERVER_TOKEN);
+	}
+
+	static String getPagePathRoot()
+	{
+		return getConfigMap().get(ROOT);
+	}
+
+	@SuppressWarnings("unchecked")
+	public static void readJsonFile()
+	{
+		JSONParser jsonParser = new JSONParser();
+
+		try (FileReader reader = new FileReader(getConfigMap().get(JSON_LINK_FILE)))
+		{
+			Object obj = jsonParser.parse(reader);
+
+			JSONArray fileList = (JSONArray) obj;
+
+			fileList.stream().forEach(file -> parseFileObject((JSONObject) file));
+
+		} catch (Exception e)
+		{
+			e.printStackTrace();
+		}
+	}
+
+	public static void parseFileObject(JSONObject obj)
+	{
+		String file = (String) obj.get("link");
+		String link = (String) obj.get("file");
+		getFileMap().put(file, link);
+
+	}
+
+	private static Map<String, String> getFileMap()
+	{
+		return fileMap;
+	}
+
+	static String getAnchorFileName(String partialLink)
+	{
+		Collection<String> list = getFileMap().keySet();
+		Optional<String> option = list.stream().filter(link -> link.contains(partialLink)).findAny();
+		return getFileMap().get(option.orElse(XwikiHelper.EMPTY));
+
+	}
 }
