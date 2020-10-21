@@ -36,6 +36,7 @@ public class FileHandler
 	private static final String ROOT = "root";
 	private static final String XWIKI_FILE_MANAGER_LOCATION = "xWikiFileManagerLocation";
 	private static final String XWIKI_XML_BASE_LOCATION = "xWikiXmlBaseLocation";
+	private static final String NONE = "None";
 
 	private static Map<String, String> configMap = new HashMap<String, String>();
 	private static Map<String, String> fileMap = new HashMap<String, String>();
@@ -155,7 +156,8 @@ public class FileHandler
 		String property = line.split(DELIMITER_MARK)[0];
 		if (isNotComment(property))
 		{
-			configMap.put(property, line.split(DELIMITER_MARK)[1]);
+			String value = line.split(DELIMITER_MARK)[1];
+			configMap.put(property, value.equals(NONE) ? XwikiHelper.EMPTY : value);
 		}
 
 	}
