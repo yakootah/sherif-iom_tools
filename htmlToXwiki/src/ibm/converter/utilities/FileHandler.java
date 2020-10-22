@@ -1,5 +1,6 @@
 package ibm.converter.utilities;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
@@ -12,7 +13,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Scanner;
 import java.util.stream.Collectors;
 
 import org.json.simple.JSONArray;
@@ -25,7 +25,7 @@ public class FileHandler
 {
 
 	private static final String SOURCE_DIR = "sourceDir";
-	private static final String DESTINATION_DIR = "destinatoinDir";
+	private static final String DESTINATION_DIR = "destinationDir";
 	private static final String COMMENT_MARK = "#";
 	private static final String DELIMITER_MARK = "=";
 	private static final String CFG_FILE = "/sources/xWiki.cfg";
@@ -38,6 +38,9 @@ public class FileHandler
 	private static final String XWIKI_XML_BASE_LOCATION = "xWikiXmlBaseLocation";
 	private static final String NONE = "None";
 
+	private static final String FAILURE_HEADER_DIR = "failureHeaderDir";
+	private static final String FAILURE_BODY_DIR = "failureBodyDir";
+
 	private static Map<String, String> configMap = new HashMap<String, String>();
 	private static Map<String, String> fileMap = new HashMap<String, String>();
 	static
@@ -46,9 +49,10 @@ public class FileHandler
 		readJsonFile();
 	}
 
-	public static void convertFile()
+	public static void convertFiles()
 	{
 		StringBuilder attachmentBuf;
+		// File file = getListOfFiles().get(859);
 		for (File file : getListOfFiles())
 		{
 			attachmentBuf = new StringBuilder();
@@ -58,7 +62,7 @@ public class FileHandler
 			{
 				navigation = data.split("</nav>")[0];
 				data = data.split("</nav>")[1];
-				XwikiHelper.buildHierachyMap(navigation.split("</nav>")[0]);
+				XwikiHelper.buildHierachyMap(navigation);
 			} catch (ArrayIndexOutOfBoundsException e)
 			{
 				try
@@ -101,6 +105,13 @@ public class FileHandler
 
 	}
 
+	public static List<File> getListOfGeneratedFiles()
+	{
+		File dir = new File(configMap.get(DESTINATION_DIR));
+		return Arrays.asList(dir.listFiles()).stream().filter(e -> e.isFile()).collect(Collectors.toList());
+
+	}
+
 	private static void loadConfigFile()
 	{
 		String userDir = System.getProperty("user.dir");
@@ -112,16 +123,18 @@ public class FileHandler
 		List<String> lines = new ArrayList<String>();
 		try
 		{
-			File myObj = new File(fileName);
-			Scanner myReader = new Scanner(myObj);
-			while (myReader.hasNextLine())
+			BufferedReader myReader = new BufferedReader(new FileReader(new File(fileName)));
+			String st;
+			while ((st = myReader.readLine()) != null)
 			{
-				lines.add(myReader.nextLine());
+				lines.add(st);
 			}
 			myReader.close();
 		} catch (FileNotFoundException e)
 		{
-			System.out.println(e.getMessage());
+			e.printStackTrace();
+		} catch (IOException e)
+		{
 			e.printStackTrace();
 		}
 		return lines;
@@ -129,18 +142,21 @@ public class FileHandler
 
 	private static String getWholeFileContent(File myObj)
 	{
-		StringBuilder buf = new StringBuilder(1 - 000 - 000);
+		StringBuilder buf = new StringBuilder();
 		try
 		{
-			Scanner myReader = new Scanner(myObj);
-			while (myReader.hasNextLine())
+			BufferedReader myReader = new BufferedReader(new FileReader(myObj));
+			String st;
+			while ((st = myReader.readLine()) != null)
 			{
-				buf.append(myReader.nextLine()).append(NEW_LINE);
+				buf.append(st).append(NEW_LINE);
 			}
 			myReader.close();
 		} catch (FileNotFoundException e)
 		{
-			System.out.println(e.getMessage());
+			e.printStackTrace();
+		} catch (IOException e)
+		{
 			e.printStackTrace();
 		}
 		return buf.toString();
@@ -172,7 +188,7 @@ public class FileHandler
 		return configMap;
 	}
 
-	public static void writeFile(String data, File file)
+	private static void writeFile(String data, File file)
 	{
 		try
 		{
@@ -270,5 +286,59 @@ public class FileHandler
 		Optional<String> option = list.stream().filter(link -> link.contains(partialLink)).findAny();
 		return getFileMap().get(option.orElse(XwikiHelper.EMPTY));
 
+	}
+
+	public static void generateFailureFiles()
+	{
+		getListOfGeneratedFiles().stream().forEach(e -> createFailureFiles(e));
+	}
+
+	private static void createFailureFiles(File file)
+	{
+		String fileName = XwikiHelper.getSimpleFileName(file.getAbsolutePath());
+		createFailureHeaderFile(fileName);
+		createFailureBodyFile(fileName);
+	}
+
+	private static void createFailureHeaderFile(String file)
+	{
+		try
+		{
+			String fileLoc = getConfigMap().get(FAILURE_HEADER_DIR) + file;
+
+			FileWriter myWriter = new FileWriter(fileLoc);
+
+			String content = getWholeFileContent(
+					new File(getConfigMap().get(DESTINATION_DIR) + XwikiHelper.SEPARATOR + file));
+			content = content.split("\\{\\{html\\}\\}")[0] + content.split("\\{\\{/html\\}\\}")[1];
+			myWriter.write(content);
+			myWriter.close();
+		} catch (IOException e)
+		{
+			System.out.println(e.getMessage());
+			e.printStackTrace();
+		}
+	}
+
+	private static void createFailureBodyFile(String file)
+	{
+		try
+		{
+			String fileLoc = getConfigMap().get(FAILURE_BODY_DIR) + XwikiHelper.SEPARATOR + file;
+
+			FileWriter myWriter = new FileWriter(fileLoc);
+
+			String content = getWholeFileContent(
+					new File(getConfigMap().get(DESTINATION_DIR) + XwikiHelper.SEPARATOR + file));
+			content = content.split("\\{\\{html\\}\\}")[1].split("\\{\\{/html\\}\\}")[0];
+			content = "{{html}}" + NEW_LINE + content + NEW_LINE + "{{/html}}";
+			content = content.replaceAll("&lt;", "<");
+			myWriter.write(content);
+			myWriter.close();
+		} catch (IOException e)
+		{
+			System.out.println(e.getMessage());
+			e.printStackTrace();
+		}
 	}
 }

@@ -9,7 +9,8 @@ public class Main
 	{
 		try
 		{
-			FileHandler.convertFile();
+			FileHandler.convertFiles();
+			FileHandler.generateFailureFiles();
 		} catch (Exception e)
 		{
 			e.printStackTrace();

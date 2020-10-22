@@ -37,7 +37,7 @@ public class XwikiHelper
 	private static final String IMAGE = "img";
 	private static final String SOURCE = "src";
 	private static final String ANCHOR_FILE_ATTRIBUTE = "files";
-	private static final String SEPARATOR = String.valueOf(File.separatorChar);
+	static final String SEPARATOR = String.valueOf(File.separatorChar);
 	private static final String TITLE = "title";
 	private static final String VIEW_DETAILS = "View details";
 	private static final String HTTP = "http";
@@ -47,9 +47,10 @@ public class XwikiHelper
 	private static final String UNDER_LINE = "_";
 	private static final String URL_SEPARATOR = "/";
 	static final String EMPTY = "";
+	private static final String QUOTES = "\"";
 	private static Map<String, String[]> map = new HashMap<String, String[]>();
 
-	private static String getXwikiPageHeader(String title, String reference)
+	static String getXwikiPageHeader(String title, String reference)
 	{
 		String header = "<?xml version='1.1' encoding='UTF-8'?>\r\n"
 				+ "<xwikidoc version=\"1.3\" reference=\"${reference}\" locale=\"\">\r\n" + "  <language/>\r\n"
@@ -61,9 +62,7 @@ public class XwikiHelper
 				+ "  <date>1602728773000</date>\r\n" + "  <contentUpdateDate>1602728773000</contentUpdateDate>\r\n"
 				+ "  <version>3.1</version>\r\n" + "  <title>${title}</title>\r\n" + "  <comment/>\r\n"
 				+ "  <minorEdit>false</minorEdit>\r\n" + "  <syntaxId>xwiki/2.1</syntaxId>\r\n"
-				+ "  <hidden>false</hidden>\r\n"
-				+ "  <content>{{box cssClass=\"floatinginfobox\" title=\"**Contents**\"}}\r\n" + "{{toc/}}\r\n"
-				+ "{{/box}}\r\n" + "\r\n";
+				+ "  <hidden>false</hidden>\r\n" + "  <content>\r\n";
 
 		return header.replace("${title}", title).replace("${reference}", reference);
 	}
@@ -82,6 +81,13 @@ public class XwikiHelper
 		{
 			return "\r\n</content>\r\n" + attachmentBuf.toString() + "</xwikidoc>";
 		}
+	}
+
+	public static String getTail()
+	{
+
+		return "\r\n</content>\r\n" + "</xwikidoc>";
+
 	}
 
 	@Deprecated
@@ -164,10 +170,15 @@ public class XwikiHelper
 		data = data.replaceAll("<", "&lt;");
 		data = data.replaceAll("-webkit-text-stroke-width:0px", EMPTY);
 		data = data.replaceAll("&quot;Helvetica Neue&quot;", ARIAL);
+		data = data.replaceAll("â€˜", QUOTES);
+		data = data.replaceAll("â€™", QUOTES);
+		data = data.replaceAll("â€œ", QUOTES);
+		data = data.replaceAll("â€", QUOTES);
+		data = data.replace("&gt;", ">");
 		return removeImportToolAttatmentNotes(data);
 	}
 
-	private static String cleanHeader(String data)
+	static String cleanHeader(String data)
 	{
 		data = data.replaceAll("Â", "");
 		data = data.replaceAll("&nbsp;", ",");
@@ -543,15 +554,22 @@ public class XwikiHelper
 		String path = getPagePath(getFile(ref));
 		if (Handy.isEmptyString(path))
 		{
-			e.attr("Style", "background-color:red");
+			e.attr("Style", "background-color:red; color:white;");
 			return;
 		}
 		e.attr(HREF, path);
 	}
 
-	private static String getFile(String ref)
+	static String getFile(String ref)
 	{
 		String[] parts = ref.split("/");
+		String filePart = parts[parts.length - 1];
+		return cleanupImagePath(filePart);
+	}
+
+	static String getSimpleFileName(String filePath)
+	{
+		String[] parts = filePath.split("\\\\");
 		String filePart = parts[parts.length - 1];
 		return cleanupImagePath(filePart);
 	}
